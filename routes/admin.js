@@ -1,25 +1,36 @@
+// Import Router from express
 const { Router } = require("express");
 const adminRouter = Router();
 
+// Import models from database
 const { adminModel, courseModel } = require("../db");
+
+// Import admin authentication middleware
 const { adminMiddleware } = require("../middelware/admin");
 
+// Import bcrypt for password hashing
 const bcrypt = require("bcrypt");
+
+// Import jsonwebtoken for creating tokens
 const jwt = require("jsonwebtoken");
 
+// Secret key from environment variables
 const JWT_ADMIN_PASSWORD = process.env.JWT_ADMIN_PASSWORD;
 
 
 // =========================
 // ADMIN SIGNUP
 // =========================
+// Endpoint: POST /admin/signup
+// Registers a new admin
 adminRouter.post("/signup", async function(req, res){
     const { email, password, firstName, lastName } = req.body;
 
     try {
-        // Hash password before storing
+        // Hash password before storing in database
         const hashedPassword = await bcrypt.hash(password, 10);
 
+        // Create new admin in database
         await adminModel.create({
             email,
             password: hashedPassword,
@@ -32,6 +43,7 @@ adminRouter.post("/signup", async function(req, res){
         });
 
     } catch (err) {
+        // Usually happens if email already exists
         res.status(500).json({
             message: "Admin may already exist"
         });
@@ -42,6 +54,8 @@ adminRouter.post("/signup", async function(req, res){
 // =========================
 // ADMIN SIGNIN
 // =========================
+// Endpoint: POST /admin/signin
+// Logs in admin and returns JWT token
 adminRouter.post("/signin", async function(req, res){
     const { email, password } = req.body;
 
@@ -49,15 +63,17 @@ adminRouter.post("/signin", async function(req, res){
         // Find admin by email
         const admin = await adminModel.findOne({ email });
 
+        // If admin not found
         if (!admin) {
             return res.status(403).json({
                 message: "Incorrect credentials"
             });
         }
 
-        // Compare password with hashed password
+        // Compare entered password with hashed password
         const passwordMatch = await bcrypt.compare(password, admin.password);
 
+        // If password incorrect
         if (!passwordMatch) {
             return res.status(403).json({
                 message: "Incorrect credentials"
@@ -69,7 +85,7 @@ adminRouter.post("/signin", async function(req, res){
             id: admin._id
         }, JWT_ADMIN_PASSWORD);
 
-        // Send token
+        // Send token to client
         res.json({
             token: token
         });
@@ -85,67 +101,98 @@ adminRouter.post("/signin", async function(req, res){
 // =========================
 // CREATE COURSE
 // =========================
+// Endpoint: POST /admin/course
+// Protected route (admin only)
+// Creates a new course
 adminRouter.post("/course", adminMiddleware, async function(req, res){
     const adminId = req.userId;
     const { title, description, imageUrl, price } = req.body;
 
-    // Create course
-    const course = await courseModel.create({
-        title,
-        description,
-        imageUrl,
-        price,
-        creatorId: adminId   // fixed field name
-    });
+    try {
+        // Create course with admin as creator
+        const course = await courseModel.create({
+            title,
+            description,
+            imageUrl,
+            price,
+            creatorId: adminId
+        });
 
-    res.json({
-        message: "Course Created",
-        courseId: course._id
-    });
+        res.json({
+            message: "Course Created",
+            courseId: course._id
+        });
+
+    } catch (err) {
+        res.status(500).json({
+            message: "Error creating course"
+        });
+    }
 });
 
 
 // =========================
 // UPDATE SINGLE COURSE
 // =========================
+// Endpoint: PUT /admin/course
+// Protected route
+// Admin can update only their own course
 adminRouter.put("/course", adminMiddleware, async function(req, res){
     const adminId = req.userId;
     const { title, description, imageUrl, price, courseId } = req.body;
 
-    await courseModel.updateOne(
-        {
-            _id: courseId,
-            creatorId: adminId   // fixed condition
-        },
-        {
-            title,
-            description,
-            imageUrl,
-            price
-        }
-    );
+    try {
+        await courseModel.updateOne(
+            {
+                _id: courseId,
+                creatorId: adminId   // ensures admin owns the course
+            },
+            {
+                title,
+                description,
+                imageUrl,
+                price
+            }
+        );
 
-    res.json({
-        message: "Course Updated"
-    });
+        res.json({
+            message: "Course Updated"
+        });
+
+    } catch (err) {
+        res.status(500).json({
+            message: "Error updating course"
+        });
+    }
 });
 
 
 // =========================
 // GET ALL COURSES BY ADMIN
 // =========================
+// Endpoint: GET /admin/course/bulk
+// Returns all courses created by this admin
 adminRouter.get("/course/bulk", adminMiddleware, async function(req, res){
     const adminId = req.userId;
 
-    const courses = await courseModel.find({
-        creatorId: adminId
-    });
+    try {
+        const courses = await courseModel.find({
+            creatorId: adminId
+        });
 
-    res.json({
-        courses
-    });
+        res.json({
+            courses
+        });
+
+    } catch (err) {
+        res.status(500).json({
+            message: "Error fetching courses"
+        });
+    }
 });
 
+
+// Export router
 module.exports = {
     adminRouter: adminRouter
 };
