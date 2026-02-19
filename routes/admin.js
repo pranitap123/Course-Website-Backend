@@ -1,7 +1,6 @@
 const { Router } = require("express");
 const adminRouter = Router();
-
-adminRouter.use(adminMiddleware);
+const { adminModel } = require("../db");
 
 adminRouter.post("/signup", function(req,res){
     res.json({
