@@ -1,6 +1,7 @@
 const { Router } = require("express");
 const adminRouter = Router();
-const { adminModel } = require("../db");
+const { adminModel, courseModel } = require("../db");
+const { adminMiddleware } = require("../middelware/admin");
 
 adminRouter.post("/signup", function(req,res){
     res.json({
@@ -14,9 +15,21 @@ adminRouter.post("/signin", function(req,res){
     })
 })
 
-adminRouter.post("/course", function(req,res){
+adminRouter.post("/course", adminMiddleware,async function(req,res){
+    const adminId = req.userId;
+
+    const { title, description, imageUrl, price } = req.body;
+
+    await courseModel.create({
+        title,
+         description, 
+         imageUrl,
+          price,
+           adminId
+    })
     res.json({
-        message: "signin endpoint"
+        message: "Course Created",
+        courseId: course._id
     })
 })
 
